@@ -11,6 +11,7 @@ import {
   formatDate,
   money,
   remainingQty,
+  type Party,
   type PurchaseItem,
   type PurchaseOrder,
 } from "@/lib/api";
@@ -60,6 +61,7 @@ function toDateInput(value?: string) {
 
 export default function PurchasesPage() {
   const [orders, setOrders] = useState<PurchaseOrder[]>([]);
+  const [suppliers, setSuppliers] = useState<Party[]>([]);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -67,7 +69,7 @@ export default function PurchasesPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
 
   const [poNumber, setPoNumber] = useState("");
-  const [supplier, setSupplier] = useState("");
+  const [supplierId, setSupplierId] = useState("");
   const [poDate, setPoDate] = useState("");
   const [items, setItems] = useState<DraftItem[]>([emptyItem()]);
   const [saving, setSaving] = useState(false);
@@ -76,7 +78,12 @@ export default function PurchasesPage() {
     setLoading(true);
     setError("");
     try {
-      setOrders(await api.getPurchases());
+      const [purchaseList, supplierList] = await Promise.all([
+        api.getPurchases(),
+        api.getSuppliers(),
+      ]);
+      setOrders(purchaseList);
+      setSuppliers(supplierList.filter((s) => s.active !== false));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load purchases");
     } finally {
@@ -118,7 +125,7 @@ export default function PurchasesPage() {
   function resetForm() {
     setEditingId(null);
     setPoNumber("");
-    setSupplier("");
+    setSupplierId("");
     setPoDate("");
     setItems([emptyItem()]);
   }
@@ -133,7 +140,11 @@ export default function PurchasesPage() {
     setError("");
     setEditingId(po._id);
     setPoNumber(po.poNumber);
-    setSupplier(po.supplier);
+    const matched =
+      po.supplierId ||
+      suppliers.find((s) => s.name === po.supplier)?._id ||
+      "";
+    setSupplierId(String(matched || ""));
     setPoDate(toDateInput(po.poDate));
     setItems(
       po.items.map((item) => ({
@@ -159,9 +170,17 @@ export default function PurchasesPage() {
     setError("");
     setSaving(true);
 
+    if (!supplierId) {
+      setError("Select a supplier");
+      setSaving(false);
+      return;
+    }
+
+    const selectedSupplier = suppliers.find((s) => s._id === supplierId);
     const payload = {
       poNumber,
-      supplier,
+      supplierId,
+      supplier: selectedSupplier?.name || "",
       poDate: poDate || undefined,
       items: items.map((item) => ({
         _id: item._id,
@@ -326,13 +345,27 @@ export default function PurchasesPage() {
               required
               placeholder="OP 26000008"
             />
-            <Field
-              label="Supplier"
-              value={supplier}
-              onChange={setSupplier}
-              required
-              placeholder="Saint Gobain"
-            />
+            <label className="grid gap-1 text-sm">
+              <span className="text-slate-500">Supplier</span>
+              <select
+                required
+                value={supplierId}
+                onChange={(e) => setSupplierId(e.target.value)}
+                className="rounded-md border border-slate-200 px-3 py-2"
+              >
+                <option value="">Select supplier</option>
+                {suppliers.map((s) => (
+                  <option key={s._id} value={s._id}>
+                    {s.name}
+                  </option>
+                ))}
+              </select>
+              {!suppliers.length ? (
+                <span className="text-xs text-amber-600">
+                  No suppliers yet. Add one under Suppliers master.
+                </span>
+              ) : null}
+            </label>
             <Field
               label="PO Date"
               type="date"

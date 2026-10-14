@@ -10,6 +10,7 @@ import {
   formatDate,
   money,
   remainingQty,
+  type Party,
   type PurchaseOrder,
   type SalesInvoice,
   type SalesInvoiceItem,
@@ -45,11 +46,13 @@ function poIdOf(invoice: SalesInvoice) {
 
 export default function SalesInvoicesPage() {
   const [purchases, setPurchases] = useState<PurchaseOrder[]>([]);
+  const [customers, setCustomers] = useState<Party[]>([]);
   const [invoices, setInvoices] = useState<SalesInvoice[]>([]);
   const [search, setSearch] = useState("");
   const [open, setOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [selectedPoId, setSelectedPoId] = useState("");
+  const [customerId, setCustomerId] = useState("");
   const [billNo, setBillNo] = useState("");
   const [lines, setLines] = useState<BillLine[]>([]);
   const [billDate, setBillDate] = useState("");
@@ -62,12 +65,14 @@ export default function SalesInvoicesPage() {
     setLoading(true);
     setError("");
     try {
-      const [p, i] = await Promise.all([
+      const [p, i, c] = await Promise.all([
         api.getPurchases(),
         api.getSalesInvoices(),
+        api.getCustomers(),
       ]);
       setPurchases(p);
       setInvoices(i);
+      setCustomers(c.filter((item) => item.active !== false));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load");
     } finally {
@@ -170,6 +175,7 @@ export default function SalesInvoicesPage() {
   function resetForm() {
     setEditingId(null);
     setSelectedPoId("");
+    setCustomerId("");
     setBillNo("");
     setLines([]);
     setBillDate("");
@@ -232,6 +238,7 @@ export default function SalesInvoicesPage() {
     setBillNo(invoice.billNo);
     setBillDate(toDateInput(invoice.billDate));
     setPaymentReceived(invoice.paymentReceived);
+    setCustomerId(invoice.customerId ? String(invoice.customerId) : "");
     const poId = poIdOf(invoice);
     setSelectedPoId(poId);
     const po = purchases.find((p) => p._id === poId);
@@ -272,6 +279,7 @@ export default function SalesInvoicesPage() {
 
     const payload = {
       purchaseOrderId: selectedPoId,
+      customerId: customerId || null,
       billNo: billNo.trim(),
       billDate: billDate || undefined,
       paymentReceived,
@@ -426,6 +434,9 @@ export default function SalesInvoicesPage() {
                           </p>
                           <p className="mt-0.5 text-sm text-slate-500">
                             {formatDate(bill.invoice.billDate)}
+                            {bill.invoice.customerName
+                              ? ` · ${bill.invoice.customerName}`
+                              : ""}
                           </p>
                         </div>
 
@@ -520,7 +531,7 @@ export default function SalesInvoicesPage() {
             </div>
           ) : null}
 
-          <div className="grid gap-3 md:grid-cols-3">
+          <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
             <label className="grid gap-1 text-sm">
               <span className="text-slate-500">Bill No</span>
               <input
@@ -531,6 +542,21 @@ export default function SalesInvoicesPage() {
                 placeholder="e.g. INV-001 / Tax invoice no"
                 className="rounded-md border border-slate-200 px-3 py-2"
               />
+            </label>
+            <label className="grid gap-1 text-sm">
+              <span className="text-slate-500">Customer</span>
+              <select
+                value={customerId}
+                onChange={(e) => setCustomerId(e.target.value)}
+                className="rounded-md border border-slate-200 px-3 py-2"
+              >
+                <option value="">Select customer (optional)</option>
+                {customers.map((c) => (
+                  <option key={c._id} value={c._id}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
             </label>
             <label className="grid gap-1 text-sm">
               <span className="text-slate-500">PO ID</span>

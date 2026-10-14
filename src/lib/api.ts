@@ -20,10 +20,25 @@ export type PurchaseItem = {
   deliverDate?: string;
 };
 
+export type Party = {
+  _id: string;
+  name: string;
+  email: string;
+  phone: string;
+  gstNumber: string;
+  address: string;
+  city: string;
+  state: string;
+  notes?: string;
+  active?: boolean;
+  createdAt?: string;
+};
+
 export type PurchaseOrder = {
   _id: string;
   poNumber: string;
   supplier: string;
+  supplierId?: string | null;
   poDate: string;
   status: "open" | "partial" | "closed" | "cancelled";
   items: PurchaseItem[];
@@ -46,6 +61,8 @@ export type SalesInvoice = {
   billNo: string;
   purchaseOrder: PurchaseOrder | string;
   poNumber: string;
+  customerId?: string | null;
+  customerName?: string;
   billDate: string;
   items: SalesInvoiceItem[];
   totalAmount: number;
@@ -89,6 +106,32 @@ export const api = {
       body: JSON.stringify({ email, password }),
     }),
   me: () => request<{ user: User }>("/auth/me"),
+  getCustomers: () => request<Party[]>("/customers"),
+  createCustomer: (body: Record<string, unknown>) =>
+    request<Party>("/customers", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  updateCustomer: (id: string, body: Record<string, unknown>) =>
+    request<Party>(`/customers/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(body),
+    }),
+  deleteCustomer: (id: string) =>
+    request<{ message: string }>(`/customers/${id}`, { method: "DELETE" }),
+  getSuppliers: () => request<Party[]>("/suppliers"),
+  createSupplier: (body: Record<string, unknown>) =>
+    request<Party>("/suppliers", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  updateSupplier: (id: string, body: Record<string, unknown>) =>
+    request<Party>(`/suppliers/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(body),
+    }),
+  deleteSupplier: (id: string) =>
+    request<{ message: string }>(`/suppliers/${id}`, { method: "DELETE" }),
   getPurchases: () => request<PurchaseOrder[]>("/purchases"),
   getPurchase: (id: string) => request<PurchaseOrder>(`/purchases/${id}`),
   createPurchase: (body: Record<string, unknown>) =>

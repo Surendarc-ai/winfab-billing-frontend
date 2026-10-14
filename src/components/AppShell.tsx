@@ -7,8 +7,10 @@ import { useAuth } from "@/lib/auth";
 
 const leftNav = [
   { href: "/dashboard", label: "Dashboard", icon: "▣" },
+  { href: "/suppliers", label: "Suppliers", icon: "🏭" },
   { href: "/purchases", label: "Purchase", icon: "◫" },
-  { href: "/sales-invoices", label: "Sales Invoice", icon: "▤" },
+  { href: "/customers", label: "Customers", icon: "👤" },
+  { href: "/sales-invoices", label: "Sales", icon: "▤" },
 ];
 
 export default function AppShell({ children }: { children: React.ReactNode }) {

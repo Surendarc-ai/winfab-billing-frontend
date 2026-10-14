@@ -96,10 +96,6 @@ export default function LoginPage() {
         >
           {submitting ? "Signing in…" : "Sign in"}
         </button>
-
-        <p className="mt-4 text-center text-xs text-slate-500">
-          Default: admin@winfab.com / admin123
-        </p>
       </form>
     </div>
   );
