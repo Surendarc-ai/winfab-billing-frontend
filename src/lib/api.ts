@@ -26,12 +26,38 @@ export type Party = {
   email: string;
   phone: string;
   gstNumber: string;
+  hsnCode?: string;
+  gstPercentage?: number;
   address: string;
   city: string;
   state: string;
   notes?: string;
   active?: boolean;
   createdAt?: string;
+};
+
+export type Company = {
+  _id: string;
+  name: string;
+  logo: string;
+  address: string;
+  gstin: string;
+  email: string;
+  bankName: string;
+  accountNo: string;
+  ifscCode: string;
+  panNo: string;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+export type RecycleBinItem = {
+  id: string;
+  type: "customers" | "suppliers" | "purchases" | "sales-invoices";
+  typeLabel: string;
+  name: string;
+  deletedAt?: string | null;
+  meta?: string;
 };
 
 export type PurchaseOrder = {
@@ -48,6 +74,8 @@ export type PurchaseOrder = {
 };
 
 export type SalesInvoiceItem = {
+  purchaseOrder?: string;
+  poNumber?: string;
   poItemId: string;
   partNo: string;
   description: string;
@@ -59,8 +87,10 @@ export type SalesInvoiceItem = {
 export type SalesInvoice = {
   _id: string;
   billNo: string;
-  purchaseOrder: PurchaseOrder | string;
+  purchaseOrder?: PurchaseOrder | string | null;
+  purchaseOrders?: Array<PurchaseOrder | string>;
   poNumber: string;
+  poNumbers?: string[];
   customerId?: string | null;
   customerName?: string;
   billDate: string;
@@ -106,7 +136,14 @@ export const api = {
       body: JSON.stringify({ email, password }),
     }),
   me: () => request<{ user: User }>("/auth/me"),
+  getCompany: () => request<Company>("/company"),
+  updateCompany: (body: Record<string, unknown>) =>
+    request<Company>("/company", {
+      method: "PUT",
+      body: JSON.stringify(body),
+    }),
   getCustomers: () => request<Party[]>("/customers"),
+  getCustomer: (id: string) => request<Party>(`/customers/${id}`),
   createCustomer: (body: Record<string, unknown>) =>
     request<Party>("/customers", {
       method: "POST",
@@ -150,6 +187,8 @@ export const api = {
     request<SalesInvoice[]>(
       poId ? `/sales-invoices?poId=${poId}` : "/sales-invoices"
     ),
+  getSalesInvoice: (id: string) =>
+    request<SalesInvoice>(`/sales-invoices/${id}`),
   createSalesInvoice: (body: Record<string, unknown>) =>
     request<SalesInvoice>("/sales-invoices", {
       method: "POST",
@@ -162,6 +201,25 @@ export const api = {
     }),
   deleteSalesInvoice: (id: string) =>
     request<{ message: string }>(`/sales-invoices/${id}`, { method: "DELETE" }),
+  getRecycleBin: () =>
+    request<{
+      items: RecycleBinItem[];
+      counts: {
+        customers: number;
+        suppliers: number;
+        purchases: number;
+        salesInvoices: number;
+        total: number;
+      };
+    }>("/recycle-bin"),
+  restoreRecycleBinItem: (type: string, id: string) =>
+    request<{ message: string }>(`/recycle-bin/${type}/${id}/restore`, {
+      method: "POST",
+    }),
+  purgeRecycleBinItem: (type: string, id: string) =>
+    request<{ message: string }>(`/recycle-bin/${type}/${id}`, {
+      method: "DELETE",
+    }),
 };
 
 export function remainingQty(item: PurchaseItem) {

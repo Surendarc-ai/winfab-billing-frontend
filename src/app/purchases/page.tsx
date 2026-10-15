@@ -214,7 +214,7 @@ export default function PurchasesPage() {
   }
 
   async function onDelete(id: string) {
-    if (!confirm("Delete this purchase order?")) return;
+    if (!confirm("Move this purchase order to Recycle Bin?")) return;
     try {
       await api.deletePurchase(id);
       await load();

@@ -11,8 +11,9 @@ export default function CustomersPage() {
     <PartyMasterPage
       title="Customers"
       addLabel="Add Customer"
-      searchPlaceholder="Search by name, email, phone, GST..."
+      searchPlaceholder="Search by name, email, phone, GST, HSN..."
       exportFileName="customers"
+      showTaxFields
       loadItems={loadItems}
       createItem={api.createCustomer}
       updateItem={api.updateCustomer}

@@ -14,6 +14,8 @@ type Draft = {
   email: string;
   phone: string;
   gstNumber: string;
+  hsnCode: string;
+  gstPercentage: string;
   address: string;
   city: string;
   state: string;
@@ -26,23 +28,14 @@ const emptyDraft = (): Draft => ({
   email: "",
   phone: "",
   gstNumber: "",
+  hsnCode: "",
+  gstPercentage: "",
   address: "",
   city: "",
   state: "",
   notes: "",
   active: true,
 });
-
-const HEADERS = [
-  "Name",
-  "Email",
-  "Phone",
-  "GST Number",
-  "City",
-  "State",
-  "Status",
-  "Actions",
-];
 
 export default function PartyMasterPage({
   title,
@@ -53,6 +46,7 @@ export default function PartyMasterPage({
   updateItem,
   deleteItem,
   exportFileName,
+  showTaxFields = false,
 }: {
   title: string;
   addLabel: string;
@@ -62,7 +56,31 @@ export default function PartyMasterPage({
   updateItem: (id: string, body: Record<string, unknown>) => Promise<Party>;
   deleteItem: (id: string) => Promise<unknown>;
   exportFileName: string;
+  showTaxFields?: boolean;
 }) {
+  const headers = showTaxFields
+    ? [
+        "Name",
+        "Email",
+        "Phone",
+        "GST Number",
+        "HSN",
+        "GST %",
+        "City",
+        "State",
+        "Status",
+        "Actions",
+      ]
+    : [
+        "Name",
+        "Email",
+        "Phone",
+        "GST Number",
+        "City",
+        "State",
+        "Status",
+        "Actions",
+      ];
   const [items, setItems] = useState<Party[]>([]);
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
@@ -97,6 +115,7 @@ export default function PartyMasterPage({
         item.email.toLowerCase().includes(q) ||
         item.phone.toLowerCase().includes(q) ||
         item.gstNumber.toLowerCase().includes(q) ||
+        (item.hsnCode || "").toLowerCase().includes(q) ||
         item.city.toLowerCase().includes(q) ||
         item.state.toLowerCase().includes(q)
     );
@@ -121,6 +140,11 @@ export default function PartyMasterPage({
       email: item.email || "",
       phone: item.phone || "",
       gstNumber: item.gstNumber || "",
+      hsnCode: item.hsnCode || "",
+      gstPercentage:
+        item.gstPercentage !== undefined && item.gstPercentage !== null
+          ? String(item.gstPercentage)
+          : "",
       address: item.address || "",
       city: item.city || "",
       state: item.state || "",
@@ -140,7 +164,23 @@ export default function PartyMasterPage({
 
     setSaving(true);
     try {
-      const payload = { ...draft, name: draft.name.trim() };
+      const payload: Record<string, unknown> = {
+        name: draft.name.trim(),
+        email: draft.email,
+        phone: draft.phone,
+        gstNumber: draft.gstNumber,
+        address: draft.address,
+        city: draft.city,
+        state: draft.state,
+        notes: draft.notes,
+        active: draft.active,
+      };
+      if (showTaxFields) {
+        payload.hsnCode = draft.hsnCode.trim();
+        payload.gstPercentage = draft.gstPercentage
+          ? Number(draft.gstPercentage)
+          : 0;
+      }
       if (editingId) await updateItem(editingId, payload);
       else await createItem(payload);
       resetForm();
@@ -154,7 +194,11 @@ export default function PartyMasterPage({
   }
 
   async function onDelete(id: string) {
-    if (!confirm(`Delete this ${title.toLowerCase().replace(/s$/, "")}?`))
+    if (
+      !confirm(
+        `Move this ${title.toLowerCase().replace(/s$/, "")} to Recycle Bin?`
+      )
+    )
       return;
     try {
       await deleteItem(id);
@@ -187,6 +231,12 @@ export default function PartyMasterPage({
                   Email: item.email || "",
                   Phone: item.phone || "",
                   "GST Number": item.gstNumber || "",
+                  ...(showTaxFields
+                    ? {
+                        "HSN Code": item.hsnCode || "",
+                        "GST %": item.gstPercentage ?? "",
+                      }
+                    : {}),
                   Address: item.address || "",
                   City: item.city || "",
                   State: item.state || "",
@@ -209,8 +259,8 @@ export default function PartyMasterPage({
         ) : null}
 
         <TableShell
-          headers={HEADERS}
-          colSpan={HEADERS.length}
+          headers={headers}
+          colSpan={headers.length}
           loading={loading}
           empty={
             !loading && !filtered.length
@@ -224,6 +274,17 @@ export default function PartyMasterPage({
               <Cell>{item.email || "—"}</Cell>
               <Cell>{item.phone || "—"}</Cell>
               <Cell>{item.gstNumber || "—"}</Cell>
+              {showTaxFields ? (
+                <>
+                  <Cell>{item.hsnCode || "—"}</Cell>
+                  <Cell>
+                    {item.gstPercentage !== undefined &&
+                    item.gstPercentage !== null
+                      ? `${item.gstPercentage}%`
+                      : "—"}
+                  </Cell>
+                </>
+              ) : null}
               <Cell>{item.city || "—"}</Cell>
               <Cell>{item.state || "—"}</Cell>
               <Cell>
@@ -276,6 +337,23 @@ export default function PartyMasterPage({
               value={draft.gstNumber}
               onChange={(v) => setDraft((d) => ({ ...d, gstNumber: v }))}
             />
+            {showTaxFields ? (
+              <>
+                <Field
+                  label="HSN Code"
+                  value={draft.hsnCode}
+                  onChange={(v) => setDraft((d) => ({ ...d, hsnCode: v }))}
+                />
+                <Field
+                  label="GST %"
+                  type="number"
+                  value={draft.gstPercentage}
+                  onChange={(v) =>
+                    setDraft((d) => ({ ...d, gstPercentage: v }))
+                  }
+                />
+              </>
+            ) : null}
             <Field
               label="Email"
               type="email"
