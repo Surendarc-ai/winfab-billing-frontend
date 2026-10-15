@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import AppShell from "@/components/AppShell";
 import SalesInvoiceFormModal, {
   invoicePoLabel,
@@ -19,6 +19,20 @@ import {
 } from "@/lib/api";
 
 export default function SalesInvoiceDetailPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex min-h-screen items-center justify-center bg-slate-100 text-sm text-slate-500">
+          Loading…
+        </div>
+      }
+    >
+      <SalesInvoiceDetailContent />
+    </Suspense>
+  );
+}
+
+function SalesInvoiceDetailContent() {
   const params = useParams();
   const router = useRouter();
   const id = String(params.id || "");
