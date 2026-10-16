@@ -332,11 +332,6 @@ export default function SalesInvoiceFormModal({
               placeholder="WFE-002-26-27"
               className="box-border w-full min-w-0 rounded-md border border-slate-200 px-3 py-2"
             />
-            {!editingId ? (
-              <span className="text-xs text-slate-400">
-                Prefills next in series (editable) · FY Apr–Mar
-              </span>
-            ) : null}
           </label>
           <label className="grid min-w-0 gap-1 text-sm">
             <span className="text-slate-500">Customer</span>
