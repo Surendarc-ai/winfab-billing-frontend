@@ -5,11 +5,21 @@ import Modal from "@/components/Modal";
 import {
   api,
   money,
+  poCustomerName,
   remainingQty,
   type Party,
   type PurchaseOrder,
   type SalesInvoice,
 } from "@/lib/api";
+
+function poMatchesCustomer(po: PurchaseOrder, customerId: string, customers: Party[]) {
+  if (!customerId) return true;
+  if (po.customerId && String(po.customerId) === customerId) return true;
+  const customer = customers.find((c) => c._id === customerId);
+  if (!customer) return false;
+  // Legacy POs stored under supplier name
+  return poCustomerName(po) === customer.name;
+}
 
 type BillLine = {
   key: string;
@@ -132,10 +142,12 @@ export default function SalesInvoiceFormModal({
 
   const billablePos = useMemo(
     () =>
-      purchases.filter((po) =>
-        po.items.some((item) => remainingQty(item) > 0)
+      purchases.filter(
+        (po) =>
+          po.items.some((item) => remainingQty(item) > 0) &&
+          poMatchesCustomer(po, customerId, customers)
       ),
-    [purchases]
+    [purchases, customerId, customers]
   );
 
   useEffect(() => {
@@ -168,7 +180,23 @@ export default function SalesInvoiceFormModal({
     setLines(buildLinesFromPos(purchases, poIds, currentInvoice));
   }
 
+  function onCustomerChange(nextCustomerId: string) {
+    setCustomerId(nextCustomerId);
+    // Drop POs that don't belong to the newly selected customer
+    const kept = selectedPoIds.filter((id) => {
+      const po = purchases.find((p) => p._id === id);
+      return po ? poMatchesCustomer(po, nextCustomerId, customers) : false;
+    });
+    if (kept.length !== selectedPoIds.length) {
+      syncLinesForPos(kept, invoice || null);
+    }
+  }
+
   function togglePo(poId: string) {
+    if (!customerId) {
+      setError("Select a customer first, then pick their purchase orders");
+      return;
+    }
     const next = selectedPoIds.includes(poId)
       ? selectedPoIds.filter((id) => id !== poId)
       : [...selectedPoIds, poId];
@@ -251,7 +279,7 @@ export default function SalesInvoiceFormModal({
     return poPickerList.filter(
       (po) =>
         po.poNumber.toLowerCase().includes(q) ||
-        po.supplier.toLowerCase().includes(q) ||
+        poCustomerName(po).toLowerCase().includes(q) ||
         po.status.toLowerCase().includes(q)
     );
   }, [poPickerList, poSearch]);
@@ -260,6 +288,19 @@ export default function SalesInvoiceFormModal({
     () => purchases.filter((po) => selectedPoIds.includes(po._id)),
     [purchases, selectedPoIds]
   );
+
+  const selectedCustomer = customers.find((c) => c._id === customerId);
+  const customerTitle = selectedCustomer
+    ? [
+        selectedCustomer.name,
+        selectedCustomer.hsnCode ? `HSN ${selectedCustomer.hsnCode}` : "",
+        selectedCustomer.gstPercentage != null
+          ? `GST ${selectedCustomer.gstPercentage}%`
+          : "",
+      ]
+        .filter(Boolean)
+        .join(" · ")
+    : undefined;
 
   return (
     <Modal
@@ -275,8 +316,8 @@ export default function SalesInvoiceFormModal({
           </div>
         ) : null}
 
-        <div className="grid gap-3 md:grid-cols-3">
-          <label className="grid gap-1 text-sm">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1.6fr)_minmax(0,10.5rem)]">
+          <label className="grid min-w-0 gap-1 text-sm">
             <span className="text-slate-500">Bill No</span>
             <input
               type="text"
@@ -284,16 +325,17 @@ export default function SalesInvoiceFormModal({
               value={billNo}
               onChange={(e) => setBillNo(e.target.value)}
               placeholder="e.g. INV-001 / Tax invoice no"
-              className="rounded-md border border-slate-200 px-3 py-2"
+              className="box-border w-full min-w-0 rounded-md border border-slate-200 px-3 py-2"
             />
           </label>
-          <label className="grid gap-1 text-sm">
+          <label className="grid min-w-0 gap-1 text-sm">
             <span className="text-slate-500">Customer</span>
             <select
               required
               value={customerId}
-              onChange={(e) => setCustomerId(e.target.value)}
-              className="rounded-md border border-slate-200 px-3 py-2"
+              onChange={(e) => onCustomerChange(e.target.value)}
+              className="box-border w-full min-w-0 max-w-full rounded-md border border-slate-200 px-3 py-2"
+              title={customerTitle}
             >
               <option value="">Select customer</option>
               {customers.map((c) => (
@@ -307,13 +349,13 @@ export default function SalesInvoiceFormModal({
               ))}
             </select>
           </label>
-          <label className="grid gap-1 text-sm">
+          <label className="grid min-w-0 gap-1 text-sm">
             <span className="text-slate-500">Bill date</span>
             <input
               type="date"
               value={billDate}
               onChange={(e) => setBillDate(e.target.value)}
-              className="rounded-md border border-slate-200 px-3 py-2"
+              className="box-border w-full min-w-0 rounded-md border border-slate-200 px-3 py-2"
             />
           </label>
         </div>
@@ -321,7 +363,7 @@ export default function SalesInvoiceFormModal({
         <div className="grid gap-1 text-sm">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <span className="text-slate-500">
-              Purchase orders (select multiple)
+              Customer purchase orders (select multiple)
             </span>
             <span className="text-xs text-slate-400">
               {selectedPoIds.length} selected
@@ -352,15 +394,20 @@ export default function SalesInvoiceFormModal({
                 type="search"
                 value={poSearch}
                 onChange={(e) => setPoSearch(e.target.value)}
-                placeholder="Search PO no or supplier…"
-                className="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm"
+                placeholder="Search PO no…"
+                disabled={!customerId}
+                className="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm disabled:bg-slate-50"
               />
             </div>
             <div className="max-h-48 space-y-1 overflow-y-auto p-2">
-              {!poPickerList.length ? (
+              {!customerId ? (
                 <p className="px-1 py-2 text-slate-500">
-                  No billable POs. Create a purchase first, or all POs are fully
-                  billed.
+                  Select a customer to see their purchase orders.
+                </p>
+              ) : !poPickerList.length ? (
+                <p className="px-1 py-2 text-slate-500">
+                  No billable POs for this customer. Add a PO under Purchase, or
+                  all their POs are fully billed.
                 </p>
               ) : !filteredPoPicker.length ? (
                 <p className="px-1 py-2 text-slate-500">
@@ -380,7 +427,10 @@ export default function SalesInvoiceFormModal({
                     />
                     <span className="min-w-0 flex-1 truncate">
                       <span className="font-medium">{po.poNumber}</span>
-                      <span className="text-slate-500"> — {po.supplier} </span>
+                      <span className="text-slate-500">
+                        {" "}
+                        — {poCustomerName(po)}{" "}
+                      </span>
                       <span className="text-slate-400">({po.status})</span>
                     </span>
                   </label>

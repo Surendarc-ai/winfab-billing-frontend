@@ -69,8 +69,8 @@ export default function RecycleBinPage() {
           Recycle Bin
         </h1>
         <p className="mb-5 text-sm text-slate-500">
-          Soft-deleted suppliers, purchases, customers, and sales. Restore or
-          permanently delete.
+          Soft-deleted customers, purchase orders, sales, and suppliers. Restore
+          or permanently delete.
         </p>
 
         {error ? (

@@ -78,7 +78,7 @@ export default function DashboardPage() {
               href="/purchases"
               className="rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-700"
             >
-              + Add Purchase
+              + Add PO
             </Link>
             <Link
               href="/sales-invoices"

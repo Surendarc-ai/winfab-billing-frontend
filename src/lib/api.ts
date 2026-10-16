@@ -63,6 +63,9 @@ export type RecycleBinItem = {
 export type PurchaseOrder = {
   _id: string;
   poNumber: string;
+  customer?: string;
+  customerId?: string | null;
+  /** @deprecated use customer — kept for older records */
   supplier: string;
   supplierId?: string | null;
   poDate: string;
@@ -72,6 +75,11 @@ export type PurchaseOrder = {
   notes?: string;
   createdAt?: string;
 };
+
+/** Display name for the party on a customer PO */
+export function poCustomerName(po: PurchaseOrder) {
+  return po.customer || po.supplier || "—";
+}
 
 export type SalesInvoiceItem = {
   purchaseOrder?: string;

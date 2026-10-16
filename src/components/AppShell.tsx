@@ -8,10 +8,10 @@ import { useAuth } from "@/lib/auth";
 const leftNav = [
   { href: "/dashboard", label: "Dashboard", icon: "dashboard" },
   { href: "/company", label: "Company", icon: "company" },
-  { href: "/suppliers", label: "Suppliers", icon: "suppliers" },
-  { href: "/purchases", label: "Purchase", icon: "purchase" },
   { href: "/customers", label: "Customers", icon: "customers" },
+  { href: "/purchases", label: "Purchase", icon: "purchase" },
   { href: "/sales-invoices", label: "Sales", icon: "sales" },
+  { href: "/suppliers", label: "Suppliers", icon: "suppliers" },
   { href: "/recycle-bin", label: "Recycle Bin", icon: "recycle" },
 ] as const;
 

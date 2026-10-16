@@ -10,6 +10,7 @@ import {
   api,
   formatDate,
   money,
+  poCustomerName,
   remainingQty,
   type Party,
   type PurchaseItem,
@@ -41,7 +42,7 @@ const emptyItem = (): DraftItem => ({
 
 const HEADERS = [
   "PO No",
-  "Supplier",
+  "Customer",
   "Date",
   "Part No",
   "Description",
@@ -61,7 +62,7 @@ function toDateInput(value?: string) {
 
 export default function PurchasesPage() {
   const [orders, setOrders] = useState<PurchaseOrder[]>([]);
-  const [suppliers, setSuppliers] = useState<Party[]>([]);
+  const [customers, setCustomers] = useState<Party[]>([]);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -69,7 +70,7 @@ export default function PurchasesPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
 
   const [poNumber, setPoNumber] = useState("");
-  const [supplierId, setSupplierId] = useState("");
+  const [customerId, setCustomerId] = useState("");
   const [poDate, setPoDate] = useState("");
   const [items, setItems] = useState<DraftItem[]>([emptyItem()]);
   const [saving, setSaving] = useState(false);
@@ -78,12 +79,12 @@ export default function PurchasesPage() {
     setLoading(true);
     setError("");
     try {
-      const [purchaseList, supplierList] = await Promise.all([
+      const [purchaseList, customerList] = await Promise.all([
         api.getPurchases(),
-        api.getSuppliers(),
+        api.getCustomers(),
       ]);
       setOrders(purchaseList);
-      setSuppliers(supplierList.filter((s) => s.active !== false));
+      setCustomers(customerList.filter((c) => c.active !== false));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load purchases");
     } finally {
@@ -101,7 +102,7 @@ export default function PurchasesPage() {
     return orders.filter(
       (po) =>
         po.poNumber.toLowerCase().includes(q) ||
-        po.supplier.toLowerCase().includes(q) ||
+        poCustomerName(po).toLowerCase().includes(q) ||
         po.status.toLowerCase().includes(q) ||
         po.items.some(
           (item) =>
@@ -125,7 +126,7 @@ export default function PurchasesPage() {
   function resetForm() {
     setEditingId(null);
     setPoNumber("");
-    setSupplierId("");
+    setCustomerId("");
     setPoDate("");
     setItems([emptyItem()]);
   }
@@ -140,11 +141,12 @@ export default function PurchasesPage() {
     setError("");
     setEditingId(po._id);
     setPoNumber(po.poNumber);
+    const name = poCustomerName(po);
     const matched =
-      po.supplierId ||
-      suppliers.find((s) => s.name === po.supplier)?._id ||
+      po.customerId ||
+      customers.find((c) => c.name === name)?._id ||
       "";
-    setSupplierId(String(matched || ""));
+    setCustomerId(String(matched || ""));
     setPoDate(toDateInput(po.poDate));
     setItems(
       po.items.map((item) => ({
@@ -170,17 +172,17 @@ export default function PurchasesPage() {
     setError("");
     setSaving(true);
 
-    if (!supplierId) {
-      setError("Select a supplier");
+    if (!customerId) {
+      setError("Select a customer");
       setSaving(false);
       return;
     }
 
-    const selectedSupplier = suppliers.find((s) => s._id === supplierId);
+    const selectedCustomer = customers.find((c) => c._id === customerId);
     const payload = {
       poNumber,
-      supplierId,
-      supplier: selectedSupplier?.name || "",
+      customerId,
+      customer: selectedCustomer?.name || "",
       poDate: poDate || undefined,
       items: items.map((item) => ({
         _id: item._id,
@@ -227,15 +229,18 @@ export default function PurchasesPage() {
     <AppShell>
       <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
         <h1 className="mb-5 text-3xl font-bold tracking-tight text-slate-900">
-          Purchase
+          Purchase Orders
         </h1>
+        <p className="mb-5 -mt-3 text-sm text-slate-500">
+          Customer POs received — bill against them in Sales.
+        </p>
 
         <ListToolbar
-          addLabel="Add Purchase"
+          addLabel="Add PO"
           onAdd={openCreate}
           search={search}
           onSearch={setSearch}
-          searchPlaceholder="Search by PO no, supplier, part no..."
+          searchPlaceholder="Search by PO no, customer, part no..."
           totalLabel={`Total line items: ${lines.length}`}
           exportDisabled={!lines.length}
           onExportExcel={() => {
@@ -243,7 +248,7 @@ export default function PurchasesPage() {
               exportToExcel(
                 lines.map(({ po, item }) => ({
                   "PO No": po.poNumber,
-                  Supplier: po.supplier,
+                  Customer: poCustomerName(po),
                   Date: formatDate(po.poDate),
                   "Part No": item.partNo,
                   Description: item.description,
@@ -255,7 +260,7 @@ export default function PurchasesPage() {
                   Status: po.status,
                 })),
                 `purchases-${new Date().toISOString().slice(0, 10)}`,
-                "Purchases"
+                "Purchase Orders"
               );
             } catch (err) {
               setError(
@@ -277,7 +282,7 @@ export default function PurchasesPage() {
           loading={loading}
           empty={
             !loading && !lines.length
-              ? "No purchases yet. Click + Add Purchase."
+              ? "No customer POs yet. Click + Add PO."
               : undefined
           }
         >
@@ -286,7 +291,7 @@ export default function PurchasesPage() {
             return (
               <TableRow key={`${po._id}-${item._id}`}>
                 <Cell className="font-medium text-slate-800">{po.poNumber}</Cell>
-                <Cell className="text-slate-700">{po.supplier}</Cell>
+                <Cell className="text-slate-700">{poCustomerName(po)}</Cell>
                 <Cell>{formatDate(po.poDate)}</Cell>
                 <Cell className="font-medium text-slate-800">{item.partNo}</Cell>
                 <Cell>{item.description}</Cell>
@@ -322,7 +327,7 @@ export default function PurchasesPage() {
 
       <Modal
         open={open}
-        title={editingId ? "Edit Purchase" : "Add Purchase"}
+        title={editingId ? "Edit Purchase Order" : "Add Purchase Order"}
         wide
         onClose={() => {
           setOpen(false);
@@ -346,23 +351,23 @@ export default function PurchasesPage() {
               placeholder="OP 26000008"
             />
             <label className="grid gap-1 text-sm">
-              <span className="text-slate-500">Supplier</span>
+              <span className="text-slate-500">Customer</span>
               <select
                 required
-                value={supplierId}
-                onChange={(e) => setSupplierId(e.target.value)}
+                value={customerId}
+                onChange={(e) => setCustomerId(e.target.value)}
                 className="rounded-md border border-slate-200 px-3 py-2"
               >
-                <option value="">Select supplier</option>
-                {suppliers.map((s) => (
-                  <option key={s._id} value={s._id}>
-                    {s.name}
+                <option value="">Select customer</option>
+                {customers.map((c) => (
+                  <option key={c._id} value={c._id}>
+                    {c.name}
                   </option>
                 ))}
               </select>
-              {!suppliers.length ? (
+              {!customers.length ? (
                 <span className="text-xs text-amber-600">
-                  No suppliers yet. Add one under Suppliers master.
+                  No customers yet. Add one under Customers master.
                 </span>
               ) : null}
             </label>
