@@ -195,6 +195,8 @@ export const api = {
     request<SalesInvoice[]>(
       poId ? `/sales-invoices?poId=${poId}` : "/sales-invoices"
     ),
+  getNextBillNo: () =>
+    request<{ billNo: string }>("/sales-invoices/next-bill-no"),
   getSalesInvoice: (id: string) =>
     request<SalesInvoice>(`/sales-invoices/${id}`),
   createSalesInvoice: (body: Record<string, unknown>) =>

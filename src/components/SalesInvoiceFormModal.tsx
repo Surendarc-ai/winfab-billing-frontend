@@ -163,12 +163,16 @@ export default function SalesInvoiceFormModal({
       setSelectedPoIds(poIds);
       setLines(buildLinesFromPos(purchases, poIds, invoice));
     } else {
-      setBillNo("");
+      setBillNo("…");
       setBillDate("");
       setPaymentReceived(false);
       setCustomerId("");
       setSelectedPoIds([]);
       setLines([]);
+      api
+        .getNextBillNo()
+        .then((res) => setBillNo(res.billNo))
+        .catch(() => setBillNo(""));
     }
   }, [open, invoice, purchases]);
 
@@ -207,10 +211,6 @@ export default function SalesInvoiceFormModal({
     e.preventDefault();
     setError("");
 
-    if (!billNo.trim()) {
-      setError("Bill no is required");
-      return;
-    }
     if (!customerId) {
       setError("Select a customer (HSN and GST % come from Customer master)");
       return;
@@ -224,7 +224,12 @@ export default function SalesInvoiceFormModal({
       return;
     }
 
-    const payload = {
+    if (!billNo.trim() || billNo.trim() === "…") {
+      setError("Bill no is required");
+      return;
+    }
+
+    const payload: Record<string, unknown> = {
       purchaseOrderIds: selectedPoIds,
       customerId,
       billNo: billNo.trim(),
@@ -324,9 +329,14 @@ export default function SalesInvoiceFormModal({
               required
               value={billNo}
               onChange={(e) => setBillNo(e.target.value)}
-              placeholder="e.g. INV-001 / Tax invoice no"
+              placeholder="WFE-002-26-27"
               className="box-border w-full min-w-0 rounded-md border border-slate-200 px-3 py-2"
             />
+            {!editingId ? (
+              <span className="text-xs text-slate-400">
+                Prefills next in series (editable) · FY Apr–Mar
+              </span>
+            ) : null}
           </label>
           <label className="grid min-w-0 gap-1 text-sm">
             <span className="text-slate-500">Customer</span>

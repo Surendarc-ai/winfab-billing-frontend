@@ -12,7 +12,7 @@ function fmtDate(value?: string) {
   return `${dd}.${mm}.${yyyy}`;
 }
 
-/** Match sample amounts: 104274.00 (no thousand separators) */
+/** Match sample amounts: 2100.00 (no thousand separators) */
 function moneyPlain(value: number) {
   return Number(value || 0).toFixed(2);
 }
@@ -56,6 +56,19 @@ function poDateForItem(
   return "";
 }
 
+function toTitleCase(value: string) {
+  return value
+    .toLowerCase()
+    .split(/\s+/)
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(" ");
+}
+
+/**
+ * Tax invoice layout matching WFE sample:
+ * company header + logo → buyer | invoice meta box → items table →
+ * totals → amount in words → bank | signature
+ */
 export function downloadSalesInvoicePdf({
   invoice,
   company,
@@ -88,10 +101,10 @@ export function downloadSalesInvoicePdf({
   const doc = new jsPDF({ unit: "mm", format: "a4" });
   const pageW = doc.internal.pageSize.getWidth();
   const pageH = doc.internal.pageSize.getHeight();
-  const left = 10;
-  const right = pageW - 10;
-  const top = 10;
-  const bottom = pageH - 10;
+  const left = 12;
+  const right = pageW - 12;
+  const top = 12;
+  const bottom = pageH - 12;
   const width = right - left;
 
   const companyName = company?.name || "WINFAB ENGINEERING";
@@ -111,124 +124,122 @@ export function downloadSalesInvoicePdf({
   const grandTotal = Math.round(beforeRound);
   const roundOff = Number((grandTotal - beforeRound).toFixed(2));
 
-  // Column grid for items table
+  // Column grid (mm) — proportions match sample table
   const col = {
     sr: left,
-    hsn: left + 14,
-    part: left + 36,
-    qty: left + 122,
-    rate: left + 138,
-    amt: left + 160,
+    hsn: left + 12,
+    part: left + 34,
+    qty: left + 128,
+    rate: left + 142,
+    amt: left + 162,
   };
-  const rateRight = col.amt - 1.5;
-  const amtRight = right - 2;
-  const midX = left + width * 0.55;
+  const rateRight = col.amt - 2;
+  const amtRight = right - 2.5;
+  const midX = left + width * 0.58;
 
-  let y = top + 6;
+  doc.setDrawColor(0);
+  doc.setTextColor(0);
 
-  // ========== HEADER: Company + GSTIN left, logo alone right ==========
+  // ========== HEADER: company left, logo right ==========
+  let y = top + 5;
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(16);
-  doc.text(companyName.toUpperCase(), left + 3, y);
+  doc.setFontSize(15);
+  doc.text(companyName.toUpperCase(), left, y);
 
-  // Logo alone on the right
-  const logoW = 22;
-  const logoH = 16;
-  const logoX = right - logoW - 3;
+  const logoW = 26;
+  const logoH = 18;
+  const logoX = right - logoW;
   if (company?.logo) {
     try {
       const fmt = company.logo.includes("image/jpeg") ? "JPEG" : "PNG";
-      doc.addImage(company.logo, fmt, logoX, top + 3, logoW, logoH);
+      doc.addImage(company.logo, fmt, logoX, top, logoW, logoH);
     } catch {
       // ignore bad logo
     }
   }
 
-  y += 6;
+  y += 5.5;
   doc.setFont("helvetica", "normal");
   doc.setFontSize(8);
   for (const line of addrLines) {
-    doc.text(line, left + 3, y);
-    y += 3.6;
+    doc.text(line, left, y);
+    y += 3.5;
   }
   if (companyEmail) {
-    doc.text(companyEmail, left + 3, y);
-    y += 3.6;
+    doc.text(companyEmail, left, y);
+    y += 3.5;
   }
   if (companyGstin) {
     doc.setFont("helvetica", "bold");
-    doc.text(`GSTIN: ${companyGstin}`, left + 3, y);
+    doc.text(`GSTIN: ${companyGstin}`, left, y);
     doc.setFont("helvetica", "normal");
-    y += 3.6;
+    y += 3.5;
   }
 
-  y = Math.max(y, top + (company?.logo ? 22 : 18)) + 2;
+  y = Math.max(y, top + (company?.logo ? 20 : 16)) + 3;
 
-  // Divider under company header
-  doc.setLineWidth(0.35);
-  doc.line(left, y, right, y);
-
-  // ========== Buyer left | Invoice meta right ==========
+  // ========== Buyer | Invoice meta (full bordered box) ==========
+  const metaH = 30;
   const sectionTop = y;
-  const metaH = 28;
-  doc.setDrawColor(0);
-  doc.setLineWidth(0.35);
-  // outer left & right borders for this header block
-  doc.line(left, sectionTop, left, sectionTop + metaH);
-  doc.line(right, sectionTop, right, sectionTop + metaH);
-  doc.line(midX, sectionTop, midX, sectionTop + metaH);
-  doc.line(left, sectionTop + metaH, right, sectionTop + metaH);
+  const sectionBot = sectionTop + metaH;
 
-  // Buyer
+  doc.setLineWidth(0.4);
+  doc.rect(left, sectionTop, width, metaH);
+  doc.line(midX, sectionTop, midX, sectionBot);
+
+  // Meta internal grid: TAX INVOICE | Date / billNo | date / Order No | Order Date
+  const metaMid = midX + (right - midX) / 2;
+  const row1 = sectionTop + 8;
+  const row2 = sectionTop + 16;
+  doc.line(midX, row1, right, row1);
+  doc.line(midX, row2, right, row2);
+  doc.line(metaMid, sectionTop, metaMid, sectionBot);
+
+  // Buyer (left)
   let by = sectionTop + 5;
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(10);
+  doc.setFontSize(9.5);
   const buyerName = `M/s. ${(customer.name || "").toUpperCase()}`;
-  doc.text(buyerName, left + 3, by);
-  by += 4.5;
+  const buyerNameWrapped = doc.splitTextToSize(buyerName, midX - left - 5);
+  doc.text(buyerNameWrapped, left + 2.5, by);
+  by += buyerNameWrapped.length * 4;
+
   doc.setFont("helvetica", "normal");
   doc.setFontSize(8);
   for (const line of customerAddressLines(customer)) {
-    const wrapped = doc.splitTextToSize(line, midX - left - 6);
-    doc.text(wrapped, left + 3, by);
-    by += wrapped.length * 3.5;
+    const wrapped = doc.splitTextToSize(line, midX - left - 5);
+    doc.text(wrapped, left + 2.5, by);
+    by += wrapped.length * 3.4;
+    if (by > sectionBot - 6) break;
   }
   if (customer.gstNumber) {
     doc.setFont("helvetica", "bold");
-    doc.text(`GSTIN: ${customer.gstNumber}`, left + 3, sectionTop + metaH - 3);
+    doc.setFontSize(8);
+    doc.text(`GSTIN: ${customer.gstNumber}`, left + 2.5, sectionBot - 3);
   }
 
-  // Right meta: TAX INVOICE | Date  /  billNo | dateValue
-  //              Order No   | Order Date
-  const metaLeft = midX;
-  const metaMid = midX + (right - midX) / 2;
-
-  doc.line(metaMid, sectionTop, metaMid, sectionTop + 16);
-  doc.line(metaLeft, sectionTop + 8, right, sectionTop + 8);
-  doc.line(metaLeft, sectionTop + 16, right, sectionTop + 16);
-
+  // Invoice meta (right)
   doc.setFont("helvetica", "bold");
   doc.setFontSize(9);
-  doc.text("TAX INVOICE", metaLeft + 3, sectionTop + 5.5);
-  doc.text("Date", metaMid + 3, sectionTop + 5.5);
+  doc.text("TAX INVOICE", midX + 2.5, sectionTop + 5.5);
+  doc.text("Date", metaMid + 2.5, sectionTop + 5.5);
 
   doc.setFont("helvetica", "normal");
   doc.setFontSize(9);
-  doc.text(invoice.billNo, metaLeft + 3, sectionTop + 13.5);
-  doc.text(fmtDate(invoice.billDate), metaMid + 3, sectionTop + 13.5);
+  doc.text(invoice.billNo || "", midX + 2.5, sectionTop + 13.5);
+  doc.text(fmtDate(invoice.billDate), metaMid + 2.5, sectionTop + 13.5);
 
   doc.setFont("helvetica", "bold");
   doc.setFontSize(8);
-  doc.text("Order No", metaLeft + 3, sectionTop + 20.5);
-  doc.text("Order Date", metaMid + 3, sectionTop + 20.5);
+  doc.text("Order No", midX + 2.5, sectionTop + 22);
+  doc.text("Order Date", metaMid + 2.5, sectionTop + 22);
 
-  y = sectionTop + metaH;
+  y = sectionBot;
 
-  // ========== Items table header ==========
+  // ========== Items table ==========
   const headH = 7;
-  doc.setLineWidth(0.3);
-  // vertical column lines (incl. left & right outer edges)
-  const drawCols = (y1: number, y2: number) => {
+  const drawVCols = (y1: number, y2: number) => {
+    doc.setLineWidth(0.35);
     doc.line(left, y1, left, y2);
     doc.line(col.hsn, y1, col.hsn, y2);
     doc.line(col.part, y1, col.part, y2);
@@ -238,77 +249,103 @@ export function downloadSalesInvoicePdf({
     doc.line(right, y1, right, y2);
   };
 
-  doc.setFillColor(255, 255, 255);
-  doc.rect(left, y, width, headH);
-  drawCols(y, y + headH);
-  doc.line(left, y + headH, right, y + headH);
+  const drawTableHeader = (atY: number) => {
+    drawVCols(atY, atY + headH);
+    doc.line(left, atY + headH, right, atY + headH);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(8);
+    doc.text("Sr.no", (col.sr + col.hsn) / 2, atY + 4.8, { align: "center" });
+    doc.text("Hsn Code", (col.hsn + col.part) / 2, atY + 4.8, {
+      align: "center",
+    });
+    doc.text("Particulars", col.part + 2, atY + 4.8);
+    doc.text("Qty", (col.qty + col.rate) / 2, atY + 4.8, { align: "center" });
+    doc.text("Rate", rateRight, atY + 4.8, { align: "right" });
+    doc.text("Amount Rs", amtRight, atY + 4.8, { align: "right" });
+  };
 
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(8);
-  doc.text("Sr.no", col.sr + 7, y + 4.8, { align: "center" });
-  doc.text("Hsn Code", col.hsn + 11, y + 4.8, { align: "center" });
-  doc.text("Particulars", col.part + 2, y + 4.8);
-  doc.text("Qty", col.qty + 8, y + 4.8, { align: "center" });
-  doc.text("Rate", rateRight, y + 4.8, { align: "right" });
-  doc.text("Amount Rs", amtRight, y + 4.8, { align: "right" });
-  y += headH;
+  // Totals + bank — always drawn in the footer zone of the last page
+  const totalRowH = 5.8;
+  const totalsH = 5 * totalRowH;
+  const footerReserve = totalsH + 10 + 26;
+  const footerTop = bottom - footerReserve;
+  const partW = col.qty - col.part - 3;
 
-  // ========== Line items: PO + Part inside Particulars (sample style) ==========
-  let sr = 1;
-  for (const item of invoice.items) {
+  type PreparedRow = {
+    textLines: string[];
+    rowH: number;
+    qty: number;
+    rate: number;
+    amount: number;
+  };
+
+  const prepared: PreparedRow[] = invoice.items.map((item) => {
     const poNo = item.poNumber || "";
     const poDate = fmtDate(poDateForItem(item, purchases));
     const poLine = poNo
       ? `PO No:${poNo}${poDate ? ` Date: ${poDate}` : ""}`
       : "";
     const partLine = `Part No: ${item.partNo} ${item.description}`.trim();
-
-    const poWrapped = poLine
-      ? doc.splitTextToSize(poLine, col.qty - col.part - 3)
-      : [];
-    const partWrapped = doc.splitTextToSize(partLine, col.qty - col.part - 3);
+    const poWrapped = poLine ? doc.splitTextToSize(poLine, partW) : [];
+    const partWrapped = doc.splitTextToSize(partLine, partW);
     const textLines = [...poWrapped, ...partWrapped];
-    const rowH = Math.max(9, textLines.length * 3.5 + 3);
+    return {
+      textLines,
+      rowH: Math.max(10, textLines.length * 3.6 + 3.5),
+      qty: item.qty,
+      rate: item.rate,
+      amount: item.amount,
+    };
+  });
 
-    if (y + rowH > bottom - 55) {
+  drawTableHeader(y);
+  y += headH;
+
+  let sr = 1;
+  for (let i = 0; i < prepared.length; i++) {
+    const row = prepared[i];
+    // Height of this row + all rows still to print
+    let restH = 0;
+    for (let j = i; j < prepared.length; j++) restH += prepared[j].rowH;
+    // If remaining rows + footer fit here → keep footer free (~9 items).
+    // Otherwise fill the page; totals go to next page footer.
+    const remainingFitWithFooter = y + restH <= footerTop;
+    const pageLimit = remainingFitWithFooter ? footerTop : bottom - 2;
+
+    if (y + row.rowH > pageLimit) {
       doc.addPage();
       y = top + 4;
-      doc.setDrawColor(0);
-      doc.setLineWidth(0.3);
-      doc.line(left, y + headH, right, y + headH);
-      drawCols(y, y + headH);
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(8);
-      doc.text("Sr.no", col.sr + 7, y + 4.8, { align: "center" });
-      doc.text("Hsn Code", col.hsn + 11, y + 4.8, { align: "center" });
-      doc.text("Particulars", col.part + 2, y + 4.8);
-      doc.text("Qty", col.qty + 8, y + 4.8, { align: "center" });
-      doc.text("Rate", rateRight, y + 4.8, { align: "right" });
-      doc.text("Amount Rs", amtRight, y + 4.8, { align: "right" });
+      drawTableHeader(y);
       y += headH;
     }
 
     const rowTop = y;
-    drawCols(rowTop, rowTop + rowH);
-    doc.setLineWidth(0.25);
-    doc.line(left, rowTop + rowH, right, rowTop + rowH);
+    drawVCols(rowTop, rowTop + row.rowH);
+    doc.setLineWidth(0.3);
+    doc.line(left, rowTop + row.rowH, right, rowTop + row.rowH);
 
     doc.setFont("helvetica", "normal");
     doc.setFontSize(8);
-    doc.text(String(sr++), col.sr + 7, rowTop + 4.5, { align: "center" });
-    doc.text(hsnCode, col.hsn + 11, rowTop + 4.5, { align: "center" });
-    doc.text(textLines, col.part + 1.5, rowTop + 4);
-    doc.text(String(item.qty), col.qty + 8, rowTop + 4.5, { align: "center" });
-    doc.text(moneyPlain(item.rate), rateRight, rowTop + 4.5, {
+    doc.text(String(sr++), (col.sr + col.hsn) / 2, rowTop + 4.5, {
+      align: "center",
+    });
+    doc.text(hsnCode, (col.hsn + col.part) / 2, rowTop + 4.5, {
+      align: "center",
+    });
+    doc.text(row.textLines, col.part + 1.5, rowTop + 4);
+    doc.text(String(row.qty), (col.qty + col.rate) / 2, rowTop + 4.5, {
+      align: "center",
+    });
+    doc.text(moneyPlain(row.rate), rateRight, rowTop + 4.5, {
       align: "right",
     });
-    doc.text(moneyPlain(item.amount), amtRight, rowTop + 4.5, {
+    doc.text(moneyPlain(row.amount), amtRight, rowTop + 4.5, {
       align: "right",
     });
-    y += rowH;
+    y += row.rowH;
   }
 
-  // ========== Totals — label | vertical line | amount ==========
+  // Items closed. No room for footer on this page → next page, totals in footer.
   const totals: Array<{ label: string; value: string; bold?: boolean }> = [
     { label: "TOTAL INVOICE", value: moneyPlain(subtotal), bold: true },
     { label: `CGST-${halfGst}%`, value: moneyPlain(cgst) },
@@ -321,12 +358,13 @@ export function downloadSalesInvoicePdf({
     },
   ];
 
-  const totalRowH = 5.5;
-  const totalsTop = y;
-  const totalsH = totals.length * totalRowH;
-  doc.setDrawColor(0);
-  doc.setLineWidth(0.3);
-  // left/right outer + divider between label and amount
+  if (y > footerTop) {
+    doc.addPage();
+  }
+
+  const totalsTop = footerTop;
+
+  doc.setLineWidth(0.35);
   doc.line(left, totalsTop, left, totalsTop + totalsH);
   doc.line(right, totalsTop, right, totalsTop + totalsH);
   doc.line(col.amt, totalsTop, col.amt, totalsTop + totalsH);
@@ -334,40 +372,40 @@ export function downloadSalesInvoicePdf({
   for (let i = 0; i < totals.length; i++) {
     const rowTop = totalsTop + i * totalRowH;
     doc.line(left, rowTop + totalRowH, right, rowTop + totalRowH);
+    if (i === 0) doc.line(left, rowTop, right, rowTop);
     const t = totals[i];
     doc.setFont("helvetica", t.bold ? "bold" : "normal");
     doc.setFontSize(9);
-    doc.text(t.label, col.qty + 1.5, rowTop + 4);
-    doc.text(t.value, amtRight, rowTop + 4, { align: "right" });
+    doc.text(t.label, col.amt - 3, rowTop + 4.1, { align: "right" });
+    doc.text(t.value, amtRight, rowTop + 4.1, { align: "right" });
   }
-  y = totalsTop + totalsH;
 
-  // ========== Amount in words ==========
-  y += 5;
+  // Amount in words
+  let fy = totalsTop + totalsH + 6;
   doc.setFont("helvetica", "italic");
-  doc.setFontSize(8);
-  doc.text(`(Rupees: ${amountInWords(grandTotal)})`, left + 3, y);
+  doc.setFontSize(8.5);
+  doc.text(`(Rupees: ${amountInWords(grandTotal)})`, left, fy);
 
-  // ========== Bank left | Signature right ==========
-  y += 7;
-  const footTop = y;
+  // Bank left | Signature right
+  fy += 8;
+  const footTop = fy;
   doc.setFont("helvetica", "bold");
   doc.setFontSize(9);
-  doc.text("Bank Details:", left + 3, y);
-  y += 4.5;
+  doc.text("Bank Details:", left, fy);
+  fy += 5;
   doc.setFont("helvetica", "normal");
-  doc.setFontSize(8);
-  doc.text(`Bank Name:${bankName}`, left + 3, y);
-  y += 4;
-  doc.text(`Account No:${accountNo}`, left + 3, y);
-  y += 4;
-  doc.text(`IFSC Code : ${ifscCode}`, left + 3, y);
-  y += 4;
-  doc.text(`Our PAN No: ${panNo}`, left + 3, y);
+  doc.setFontSize(8.5);
+  doc.text(`Bank Name:${bankName}`, left, fy);
+  fy += 4.2;
+  doc.text(`Account No:${accountNo}`, left, fy);
+  fy += 4.2;
+  doc.text(`IFSC Code : ${ifscCode}`, left, fy);
+  fy += 4.2;
+  doc.text(`Our PAN No: ${panNo}`, left, fy);
 
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(9);
-  doc.text(`for ${toTitleCase(companyName)}`, right - 3, footTop + 8, {
+  doc.setFontSize(9.5);
+  doc.text(`for ${toTitleCase(companyName)}`, right, footTop + 10, {
     align: "right",
   });
 
@@ -376,12 +414,4 @@ export function downloadSalesInvoicePdf({
     "_"
   );
   doc.save(fileName);
-}
-
-function toTitleCase(value: string) {
-  return value
-    .toLowerCase()
-    .split(/\s+/)
-    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-    .join(" ");
 }
