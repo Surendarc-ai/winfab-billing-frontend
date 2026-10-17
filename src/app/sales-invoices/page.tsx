@@ -33,18 +33,26 @@ export default function SalesInvoicesPage() {
     setLoading(true);
     setError("");
     try {
-      const [p, i, c] = await Promise.all([
-        api.getPurchases(),
-        api.getSalesInvoices(),
-        api.getCustomers(),
-      ]);
-      setPurchases(p);
+      // List page only needs invoices; load POs/customers when opening the form
+      const i = await api.getSalesInvoices();
       setInvoices(i);
-      setCustomers(c.filter((item) => item.active !== false));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load");
     } finally {
       setLoading(false);
+    }
+  }, []);
+
+  const loadFormData = useCallback(async () => {
+    try {
+      const [p, c] = await Promise.all([
+        api.getPurchases(),
+        api.getCustomers(),
+      ]);
+      setPurchases(p);
+      setCustomers(c.filter((item) => item.active !== false));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load form data");
     }
   }, []);
 
@@ -74,10 +82,12 @@ export default function SalesInvoicesPage() {
     e.preventDefault();
     e.stopPropagation();
     try {
-      await api.updateSalesInvoice(invoice._id, {
+      const updated = await api.updateSalesInvoice(invoice._id, {
         paymentReceived: !invoice.paymentReceived,
       });
-      await load();
+      setInvoices((prev) =>
+        prev.map((inv) => (inv._id === invoice._id ? updated : inv))
+      );
     } catch (err) {
       setError(err instanceof Error ? err.message : "Update failed");
     }
@@ -92,7 +102,7 @@ export default function SalesInvoicesPage() {
       return;
     try {
       await api.deleteSalesInvoice(id);
-      await load();
+      setInvoices((prev) => prev.filter((inv) => inv._id !== id));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Delete failed");
     }
@@ -109,6 +119,7 @@ export default function SalesInvoicesPage() {
           addLabel="Add Invoice"
           onAdd={() => {
             setError("");
+            void loadFormData();
             setOpen(true);
           }}
           search={search}
@@ -227,9 +238,9 @@ export default function SalesInvoicesPage() {
         purchases={purchases}
         customers={customers}
         onClose={() => setOpen(false)}
-        onSaved={() => {
+        onSaved={(invoice) => {
           setOpen(false);
-          load();
+          setInvoices((prev) => [invoice, ...prev]);
         }}
       />
     </AppShell>

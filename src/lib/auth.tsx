@@ -20,6 +20,32 @@ type AuthContextValue = {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
+function userFromJwt(token: string): User | null {
+  try {
+    const part = token.split(".")[1];
+    if (!part) return null;
+    const json = JSON.parse(
+      atob(part.replace(/-/g, "+").replace(/_/g, "/"))
+    ) as {
+      id?: string;
+      name?: string;
+      email?: string;
+      role?: string;
+      exp?: number;
+    };
+    if (json.exp && json.exp * 1000 < Date.now()) return null;
+    if (!json.id) return null;
+    return {
+      id: json.id,
+      name: json.name || "",
+      email: json.email || "",
+      role: json.role || "admin",
+    };
+  } catch {
+    return null;
+  }
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
@@ -33,12 +59,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     setToken(saved);
+    // Unblock UI immediately from JWT — don't wait on /me → Atlas RTT
+    const fromToken = userFromJwt(saved);
+    if (fromToken) {
+      setUser(fromToken);
+      setLoading(false);
+    }
+
     api
       .me()
       .then((res) => setUser(res.user))
       .catch(() => {
         localStorage.removeItem("winfab_token");
         setToken(null);
+        setUser(null);
       })
       .finally(() => setLoading(false));
   }, []);
